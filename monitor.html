@@ -1,0 +1,893 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RetNet 124M — Training Monitor</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+  :root {
+    --bg:       #080c14;
+    --bg2:      #0d1220;
+    --bg3:      #111827;
+    --border:   #1e2d45;
+    --text:     #c9d1e0;
+    --dim:      #4a5568;
+    --accent:   #3b82f6;
+    --green:    #10b981;
+    --yellow:   #f59e0b;
+    --red:      #ef4444;
+    --purple:   #8b5cf6;
+    --cyan:     #06b6d4;
+    --glow-b:   rgba(59,130,246,0.35);
+    --glow-g:   rgba(16,185,129,0.35);
+    --glow-c:   rgba(6,182,212,0.35);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', system-ui, sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── Header ── */
+  header {
+    background: linear-gradient(135deg, #0d1728 0%, #0a1520 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 16px 28px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky; top: 0; z-index: 100;
+    backdrop-filter: blur(12px);
+  }
+  .header-left { display: flex; align-items: center; gap: 14px; }
+  .logo {
+    width: 36px; height: 36px;
+    background: linear-gradient(135deg, var(--accent), var(--purple));
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; font-weight: 700; color: white;
+  }
+  .header-title { font-size: 16px; font-weight: 600; color: white; }
+  .header-sub   { font-size: 12px; color: var(--dim); margin-top: 2px; font-family: 'JetBrains Mono', monospace; }
+  .status-pill {
+    display: flex; align-items: center; gap: 8px;
+    background: rgba(16,185,129,0.12); border: 1px solid rgba(16,185,129,0.3);
+    border-radius: 20px; padding: 6px 14px;
+    font-size: 13px; font-weight: 500; color: var(--green);
+  }
+  .pulse-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--green);
+    animation: pulse-glow 1.4s ease-in-out infinite;
+  }
+  @keyframes pulse-glow {
+    0%,100% { box-shadow: 0 0 0 0 rgba(16,185,129,0.6); }
+    50% { box-shadow: 0 0 0 5px rgba(16,185,129,0); }
+  }
+  .refresh-badge {
+    font-size: 11px; color: var(--dim);
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  /* ── Layout ── */
+  .layout {
+    display: grid;
+    grid-template-columns: 1fr 320px;
+    grid-template-rows: auto 1fr;
+    gap: 0;
+    min-height: calc(100vh - 69px);
+  }
+
+  /* ── Metrics Bar ── */
+  .metrics-bar {
+    grid-column: 1 / -1;
+    display: flex; gap: 0;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg2);
+    overflow-x: auto;
+  }
+  .metric-item {
+    flex: 1; min-width: 110px;
+    padding: 14px 20px;
+    border-right: 1px solid var(--border);
+    transition: background 0.2s;
+  }
+  .metric-item:hover { background: var(--bg3); }
+  .metric-label { font-size: 11px; color: var(--dim); font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; }
+  .metric-value { font-size: 22px; font-weight: 700; margin-top: 4px; font-family: 'JetBrains Mono', monospace; }
+  .metric-sub   { font-size: 11px; color: var(--dim); margin-top: 2px; }
+  .mv-blue   { color: var(--accent); }
+  .mv-green  { color: var(--green); }
+  .mv-yellow { color: var(--yellow); }
+  .mv-cyan   { color: var(--cyan); }
+  .mv-purple { color: var(--purple); }
+
+  /* ── Graph canvas ── */
+  .graph-area {
+    position: relative;
+    overflow: hidden;
+    background: radial-gradient(ellipse at 30% 40%, rgba(59,130,246,0.04) 0%, transparent 60%),
+                radial-gradient(ellipse at 70% 70%, rgba(139,92,246,0.04) 0%, transparent 60%),
+                var(--bg);
+  }
+  #graph-svg {
+    width: 100%; height: 100%;
+    min-height: 640px;
+  }
+
+  /* ── Sidebar ── */
+  .sidebar {
+    background: var(--bg2);
+    border-left: 1px solid var(--border);
+    display: flex; flex-direction: column;
+    overflow-y: auto;
+  }
+  .sidebar-section {
+    padding: 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  .section-title {
+    font-size: 11px; font-weight: 600; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--dim);
+    margin-bottom: 14px;
+  }
+
+  /* Progress */
+  .progress-container { margin-bottom: 10px; }
+  .progress-header { display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 13px; }
+  .progress-track {
+    height: 6px; background: var(--border); border-radius: 3px; overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--purple));
+    border-radius: 3px;
+    transition: width 1s ease;
+    position: relative;
+    overflow: hidden;
+  }
+  .progress-fill::after {
+    content: '';
+    position: absolute; top: 0; left: -100%; width: 100%; height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+    animation: shimmer 2s infinite;
+  }
+  @keyframes shimmer { to { left: 200%; } }
+
+  /* Log */
+  .log-list { display: flex; flex-direction: column; gap: 6px; max-height: 260px; overflow-y: auto; }
+  .log-entry {
+    background: var(--bg3); border-radius: 6px; padding: 8px 10px;
+    font-size: 11px; font-family: 'JetBrains Mono', monospace;
+    border-left: 3px solid var(--border);
+    animation: fadein 0.4s ease;
+  }
+  .log-entry.val  { border-left-color: var(--green); }
+  .log-entry.step { border-left-color: var(--accent); }
+  .log-entry.save { border-left-color: var(--purple); }
+  @keyframes fadein { from { opacity: 0; transform: translateX(6px); } to { opacity: 1; } }
+  .log-time { color: var(--dim); }
+
+  /* Val history chart */
+  #val-chart { width: 100%; }
+
+  /* Phase badges */
+  .phase-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: rgba(59,130,246,0.15); border: 1px solid rgba(59,130,246,0.3);
+    border-radius: 6px; padding: 6px 12px; font-size: 12px;
+    font-weight: 500; color: var(--accent);
+    margin-bottom: 10px;
+  }
+
+  /* ── SVG node styles ── */
+  .node-group { cursor: pointer; }
+  .node-group:hover .node-body { filter: brightness(1.3); }
+
+  .edge-path {
+    fill: none;
+    stroke-width: 1.5;
+    stroke-dasharray: 6 4;
+    animation: dash-flow 2s linear infinite;
+  }
+  @keyframes dash-flow { to { stroke-dashoffset: -30; } }
+
+  .edge-active {
+    stroke-dasharray: 8 3;
+    animation: dash-flow 1s linear infinite;
+    filter: drop-shadow(0 0 3px currentColor);
+  }
+
+  .node-label {
+    font-family: 'Inter', sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    fill: white;
+    pointer-events: none;
+    text-anchor: middle;
+    dominant-baseline: central;
+  }
+  .node-sublabel {
+    font-family: 'Inter', sans-serif;
+    font-size: 9px;
+    font-weight: 400;
+    fill: rgba(255,255,255,0.55);
+    pointer-events: none;
+    text-anchor: middle;
+  }
+
+  .node-done    { fill: url(#grad-green); stroke: rgba(16,185,129,0.6); stroke-width: 1.5; filter: drop-shadow(0 0 6px rgba(16,185,129,0.4)); }
+  .node-running { fill: url(#grad-blue);  stroke: rgba(59,130,246,0.8); stroke-width: 2; filter: drop-shadow(0 0 10px rgba(59,130,246,0.5)); }
+  .node-wait    { fill: url(#grad-grey);  stroke: rgba(74,85,104,0.5);  stroke-width: 1; }
+  .node-sub     { fill: url(#grad-purple);stroke: rgba(139,92,246,0.5); stroke-width: 1; filter: drop-shadow(0 0 4px rgba(139,92,246,0.3)); }
+  .node-data    { fill: url(#grad-cyan);  stroke: rgba(6,182,212,0.5);  stroke-width: 1; filter: drop-shadow(0 0 4px rgba(6,182,212,0.3)); }
+
+  .ring-pulse {
+    fill: none;
+    stroke: rgba(59,130,246,0.4);
+    stroke-width: 2;
+    animation: ring-expand 2s ease-out infinite;
+  }
+  @keyframes ring-expand {
+    0%  { r: 32px; opacity: 0.8; }
+    100% { r: 55px; opacity: 0; }
+  }
+
+  .tooltip {
+    position: fixed;
+    background: rgba(13,18,32,0.95);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 12px;
+    pointer-events: none;
+    z-index: 1000;
+    max-width: 220px;
+    display: none;
+    backdrop-filter: blur(8px);
+  }
+  .tt-title { font-weight: 600; color: white; margin-bottom: 4px; }
+  .tt-body   { color: var(--dim); line-height: 1.6; }
+</style>
+</head>
+<body>
+
+<!-- Tooltip -->
+<div class="tooltip" id="tooltip">
+  <div class="tt-title" id="tt-title"></div>
+  <div class="tt-body"  id="tt-body"></div>
+</div>
+
+<!-- Header -->
+<header>
+  <div class="header-left">
+    <div class="logo">R</div>
+    <div>
+      <div class="header-title">Accessible RetNet 124M</div>
+      <div class="header-sub">WikiText-103 &nbsp;|&nbsp; RTX 2070 8GB &nbsp;|&nbsp; CUDA 11.8 &nbsp;|&nbsp; FP16</div>
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;gap:16px;">
+    <span class="refresh-badge" id="refresh-counter">refreshing...</span>
+    <div class="status-pill" id="status-pill">
+      <div class="pulse-dot"></div>
+      <span id="status-text">Training</span>
+    </div>
+  </div>
+</header>
+
+<!-- Main layout -->
+<div class="layout">
+
+  <!-- Metrics bar -->
+  <div class="metrics-bar">
+    <div class="metric-item">
+      <div class="metric-label">Step</div>
+      <div class="metric-value mv-blue" id="m-step">—</div>
+      <div class="metric-sub" id="m-step-pct">of 50,000</div>
+    </div>
+    <div class="metric-item">
+      <div class="metric-label">Train Loss</div>
+      <div class="metric-value mv-yellow" id="m-loss">—</div>
+      <div class="metric-sub">cross-entropy</div>
+    </div>
+    <div class="metric-item">
+      <div class="metric-label">Perplexity</div>
+      <div class="metric-value mv-cyan" id="m-ppl">—</div>
+      <div class="metric-sub">target: 15.2</div>
+    </div>
+    <div class="metric-item">
+      <div class="metric-label">Best Val PPL</div>
+      <div class="metric-value mv-green" id="m-val">—</div>
+      <div class="metric-sub">validated</div>
+    </div>
+    <div class="metric-item">
+      <div class="metric-label">Learn Rate</div>
+      <div class="metric-value mv-purple" id="m-lr">—</div>
+      <div class="metric-sub">AdamW β₁=0.9 β₂=0.98</div>
+    </div>
+    <div class="metric-item">
+      <div class="metric-label">GPU Memory</div>
+      <div class="metric-value mv-blue" id="m-gpu">—</div>
+      <div class="metric-sub">of 8.0 GB</div>
+    </div>
+    <div class="metric-item">
+      <div class="metric-label">Speed</div>
+      <div class="metric-value mv-cyan" id="m-speed">—</div>
+      <div class="metric-sub">steps / sec</div>
+    </div>
+    <div class="metric-item" style="border-right:none;">
+      <div class="metric-label">ETA</div>
+      <div class="metric-value mv-yellow" id="m-eta" style="font-size:15px;margin-top:6px;">—</div>
+      <div class="metric-sub">to completion</div>
+    </div>
+  </div>
+
+  <!-- Knowledge Graph SVG -->
+  <div class="graph-area">
+    <svg id="graph-svg" viewBox="0 0 900 640" preserveAspectRatio="xMidYMid meet">
+      <defs>
+        <linearGradient id="grad-green" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#1de9a8"/>
+          <stop offset="100%" stop-color="#059669"/>
+        </linearGradient>
+        <linearGradient id="grad-blue" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#60a5fa"/>
+          <stop offset="100%" stop-color="#2563eb"/>
+        </linearGradient>
+        <linearGradient id="grad-purple" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#a78bfa"/>
+          <stop offset="100%" stop-color="#7c3aed"/>
+        </linearGradient>
+        <linearGradient id="grad-cyan" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#67e8f9"/>
+          <stop offset="100%" stop-color="#0891b2"/>
+        </linearGradient>
+        <linearGradient id="grad-grey" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#374151"/>
+          <stop offset="100%" stop-color="#1f2937"/>
+        </linearGradient>
+        <linearGradient id="grad-bg" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#0d1728"/>
+          <stop offset="100%" stop-color="#080c14"/>
+        </linearGradient>
+        <filter id="glow-blue">
+          <feGaussianBlur stdDeviation="3" result="blur"/>
+          <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+
+        <!-- Arrowhead markers -->
+        <marker id="arrow-green" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L8,3 z" fill="rgba(16,185,129,0.7)"/>
+        </marker>
+        <marker id="arrow-blue" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L8,3 z" fill="rgba(59,130,246,0.7)"/>
+        </marker>
+        <marker id="arrow-dim" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L8,3 z" fill="rgba(74,85,104,0.5)"/>
+        </marker>
+        <marker id="arrow-cyan" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L8,3 z" fill="rgba(6,182,212,0.6)"/>
+        </marker>
+      </defs>
+
+      <!-- Background grid (subtle) -->
+      <defs>
+        <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+          <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(255,255,255,0.02)" stroke-width="1"/>
+        </pattern>
+      </defs>
+      <rect width="900" height="640" fill="url(#grid)"/>
+
+      <!-- ═══════════════════════════════════════════════════════ EDGES ═══ -->
+
+      <!-- Environment -> Model Architecture -->
+      <path class="edge-path" stroke="rgba(16,185,129,0.5)"
+            d="M 140,100 C 200,100 240,140 290,160" marker-end="url(#arrow-green)"/>
+
+      <!-- Dataset -> Tokenizer -->
+      <path class="edge-path" stroke="rgba(6,182,212,0.5)"
+            d="M 160,220 L 270,220" marker-end="url(#arrow-cyan)"/>
+
+      <!-- Tokenizer -> Chunks -->
+      <path class="edge-path" stroke="rgba(6,182,212,0.5)"
+            d="M 370,220 L 450,220" marker-end="url(#arrow-cyan)"/>
+
+      <!-- Chunks -> Training -->
+      <path class="edge-path edge-active" stroke="rgba(59,130,246,0.6)" id="edge-data-train"
+            d="M 530,220 C 580,220 620,260 640,290" marker-end="url(#arrow-blue)"/>
+
+      <!-- Model -> Training -->
+      <path class="edge-path edge-active" stroke="rgba(59,130,246,0.6)" id="edge-model-train"
+            d="M 420,175 C 500,175 580,240 638,302" marker-end="url(#arrow-blue)"/>
+
+      <!-- Training -> Optimizer -->
+      <path class="edge-path edge-active" stroke="rgba(59,130,246,0.4)"
+            d="M 700,295 L 800,240" marker-end="url(#arrow-blue)"/>
+
+      <!-- Training -> LR Schedule -->
+      <path class="edge-path edge-active" stroke="rgba(139,92,246,0.4)"
+            d="M 700,320 L 800,340" marker-end="url(#arrow-dim)"/>
+
+      <!-- Training -> Validation -->
+      <path class="edge-path" stroke="rgba(74,85,104,0.4)" id="edge-train-val"
+            d="M 660,380 C 660,420 660,430 660,455" marker-end="url(#arrow-dim)"/>
+
+      <!-- Validation -> Best Model -->
+      <path class="edge-path" stroke="rgba(74,85,104,0.4)" id="edge-val-best"
+            d="M 720,470 L 800,490" marker-end="url(#arrow-dim)"/>
+
+      <!-- Training -> Generation -->
+      <path class="edge-path" stroke="rgba(74,85,104,0.3)" id="edge-train-gen"
+            d="M 620,385 C 550,430 430,480 380,510" marker-end="url(#arrow-dim)"/>
+
+      <!-- Generation -> Perplexity -->
+      <path class="edge-path" stroke="rgba(74,85,104,0.3)" id="edge-gen-ppl"
+            d="M 320,545 L 220,545" marker-end="url(#arrow-dim)"/>
+
+      <!-- Sub-node connectors inside model group -->
+      <line stroke="rgba(139,92,246,0.3)" stroke-width="1" x1="360" y1="175" x2="310" y2="240"/>
+      <line stroke="rgba(139,92,246,0.3)" stroke-width="1" x1="380" y1="175" x2="380" y2="240"/>
+      <line stroke="rgba(139,92,246,0.3)" stroke-width="1" x1="400" y1="175" x2="450" y2="240"/>
+
+      <!-- ══════════════════════════════════════════════════════ NODES ═══ -->
+
+      <!-- ── Environment node ── -->
+      <g class="node-group" id="node-env"
+         data-title="Environment" data-body="PyTorch 2.1.2+cu118 | CUDA 11.8&#10;RTX 2070 | 8GB VRAM | CC 7.5&#10;FP16 Tensor Cores: ACTIVE">
+        <rect class="node-body node-done" x="40" y="72" width="110" height="54" rx="12"/>
+        <text class="node-label" x="95" y="94">Environment</text>
+        <text class="node-sublabel" x="95" y="110">PyTorch 2.1.2+cu118</text>
+        <text class="node-sublabel" x="95" y="121">RTX 2070 · CUDA 11.8</text>
+      </g>
+
+      <!-- ── Dataset node ── -->
+      <g class="node-group" id="node-data"
+         data-title="WikiText-103 Dataset" data-body="116.9M training tokens&#10;245K val tokens | 280K test tokens&#10;228,283 chunks of 512 tokens each">
+        <rect class="node-body node-done" x="40" y="192" width="120" height="54" rx="12"/>
+        <text class="node-label" x="100" y="214">WikiText-103</text>
+        <text class="node-sublabel" x="100" y="230">116.9M tokens</text>
+        <text class="node-sublabel" x="100" y="241">228k chunks</text>
+      </g>
+
+      <!-- ── Tokenizer node ── -->
+      <g class="node-group" id="node-tok"
+         data-title="GPT-2 Tokenizer" data-body="GPT-2 BPE tokenizer&#10;Vocabulary: 50,257 tokens&#10;EOS token used as document separator">
+        <rect class="node-body node-data" x="270" y="196" width="100" height="44" rx="10"/>
+        <text class="node-label" x="320" y="213">GPT-2 Tokenizer</text>
+        <text class="node-sublabel" x="320" y="228">vocab = 50,257</text>
+      </g>
+
+      <!-- ── Chunks node ── -->
+      <g class="node-group" id="node-chunks"
+         data-title="Token Chunks" data-body="Each chunk: 512 tokens&#10;Input: chunk[0:511]&#10;Target: chunk[1:512]&#10;Next-token prediction task">
+        <rect class="node-body node-data" x="450" y="196" width="90" height="44" rx="10"/>
+        <text class="node-label" x="495" y="213">Token Chunks</text>
+        <text class="node-sublabel" x="495" y="228">seq_len = 512</text>
+      </g>
+
+      <!-- ── Model Architecture node (central) ── -->
+      <g class="node-group" id="node-model"
+         data-title="RetNet Architecture" data-body="123,634,944 parameters&#10;12 layers · 6 heads&#10;d_model=768 · d_ff=1536&#10;d_qk=128 · d_v=256 (asymmetric)&#10;Weight-tied embedding + LM head">
+        <rect class="node-body node-done" x="270" y="140" width="160" height="56" rx="12"/>
+        <text class="node-label" x="350" y="160">RetNet Architecture</text>
+        <text class="node-sublabel" x="350" y="176">123.6M params · 12L · 6H</text>
+        <text class="node-sublabel" x="350" y="187">d=768 · d_v=256</text>
+      </g>
+
+      <!-- Sub-nodes below model -->
+      <g class="node-group" id="node-xpos"
+         data-title="xPos Positional Encoding" data-body="Extrapolatable Position Encoding&#10;Rotary-style with decay factor ζ&#10;Applied to Q (queries) and K (keys)&#10;Bounded: ζ^(pos/512) ∈ [0.5, 1.0]">
+        <rect class="node-body node-sub" x="278" y="248" width="72" height="36" rx="8"/>
+        <text class="node-label" x="314" y="265">xPos</text>
+        <text class="node-sublabel" x="314" y="277">Pos Encoding</text>
+      </g>
+      <g class="node-group" id="node-retention"
+         data-title="Multi-Scale Retention" data-body="6 heads, each with own decay γ_h&#10;γ = 1 - 2^(-(5+h)) for h=0..5&#10;Parallel mode: O(T²) training&#10;Recurrent mode: O(1) inference">
+        <rect class="node-body node-sub" x="356" y="248" width="72" height="36" rx="8"/>
+        <text class="node-label" x="392" y="265">Retention</text>
+        <text class="node-sublabel" x="392" y="277">6 heads · decay</text>
+      </g>
+      <g class="node-group" id="node-ffn"
+         data-title="Feed-Forward Network" data-body="FFN dimension: 1,536&#10;Activation: GELU&#10;Applied after each retention layer&#10;Pre-norm (LayerNorm before each sub-layer)">
+        <rect class="node-body node-sub" x="434" y="248" width="72" height="36" rx="8"/>
+        <text class="node-label" x="470" y="265">FFN</text>
+        <text class="node-sublabel" x="470" y="277">d_ff=1536·GELU</text>
+      </g>
+
+      <!-- ── Training Loop (central running node) ── -->
+      <!-- Pulse ring -->
+      <circle class="ring-pulse" id="pulse-ring" cx="660" cy="325" r="32"/>
+      <g class="node-group" id="node-train"
+         data-title="Training Loop" data-body="Step: loading...&#10;Effective batch = 32 (8 × 4 accum)&#10;FP16 autocast + GradScaler&#10;Gradient clip = 1.0">
+        <rect class="node-body node-running" x="590" y="290" width="140" height="68" rx="14"/>
+        <text class="node-label" x="660" y="313" style="font-size:13px;">Training Loop</text>
+        <text class="node-sublabel" x="660" y="330" id="node-step-text">step 0 / 50,000</text>
+        <text class="node-sublabel" x="660" y="342" id="node-phase-text">Initializing...</text>
+        <text class="node-sublabel" x="660" y="353" id="node-loss-text">loss —</text>
+      </g>
+
+      <!-- ── Optimizer node ── -->
+      <g class="node-group" id="node-optim"
+         data-title="AdamW Optimizer" data-body="β₁=0.9, β₂=0.98, ε=1e-8&#10;Weight decay = 0.05&#10;No decay on biases/norms&#10;FP32 optimizer states">
+        <rect class="node-body node-done" x="760" y="210" width="100" height="46" rx="10"/>
+        <text class="node-label" x="810" y="228">AdamW</text>
+        <text class="node-sublabel" x="810" y="242">β₁=0.9 β₂=0.98</text>
+        <text class="node-sublabel" x="810" y="253">wd=0.05</text>
+      </g>
+
+      <!-- ── LR Schedule node ── -->
+      <g class="node-group" id="node-lr"
+         data-title="LR Schedule" data-body="Warmup: steps 0-1,000 (linear)&#10;Cosine decay: steps 1k-50k&#10;Max LR = 3×10⁻⁴&#10;Min LR = 3×10⁻⁵ (10% of max)">
+        <rect class="node-body node-done" x="760" y="318" width="100" height="44" rx="10"/>
+        <text class="node-label" x="810" y="336">LR Schedule</text>
+        <text class="node-sublabel" x="810" y="350">Warmup + Cosine</text>
+        <text class="node-sublabel" x="810" y="360" id="node-lr-text">LR: —</text>
+      </g>
+
+      <!-- ── Validation node ── -->
+      <g class="node-group" id="node-val"
+         data-title="Validation" data-body="Run every 2,000 steps&#10;Full WikiText-103 val set (478 batches)&#10;First val checkpoint: step 2,000&#10;Saves best model when improved">
+        <rect class="node-body node-wait" id="node-val-body" x="590" y="455" width="140" height="46" rx="12"/>
+        <text class="node-label" x="660" y="473">Validation</text>
+        <text class="node-sublabel" x="660" y="487">every 2,000 steps</text>
+        <text class="node-sublabel" x="660" y="498" id="node-val-text">pending...</text>
+      </g>
+
+      <!-- ── Best Model node ── -->
+      <g class="node-group" id="node-best"
+         data-title="Best Model Checkpoint" data-body="Saved whenever val PPL improves&#10;Location: checkpoints/best_model.pt&#10;~1.5 GB on disk&#10;Used for final inference">
+        <rect class="node-body node-wait" id="node-best-body" x="760" y="468" width="100" height="44" rx="10"/>
+        <text class="node-label" x="810" y="485">Best Model</text>
+        <text class="node-sublabel" x="810" y="499" id="node-best-text">val_ppl: —</text>
+        <text class="node-sublabel" x="810" y="509">.pt checkpoint</text>
+      </g>
+
+      <!-- ── Generation Pipeline node ── -->
+      <g class="node-group" id="node-gen"
+         data-title="Generation Pipeline" data-body="Recurrent inference mode (O(1) memory)&#10;Temperature sampling (0.5–1.2)&#10;Top-p nucleus sampling (p=0.9)&#10;Repetition penalty (1.3)&#10;N-gram blocking (n=3)">
+        <rect class="node-body node-wait" id="node-gen-body" x="320" y="492" width="120" height="46" rx="12"/>
+        <text class="node-label" x="380" y="510">Generation</text>
+        <text class="node-sublabel" x="380" y="524">recurrent O(1)</text>
+        <text class="node-sublabel" x="380" y="535">temp·top-p·n-gram</text>
+      </g>
+
+      <!-- ── Perplexity Eval node ── -->
+      <g class="node-group" id="node-ppl"
+         data-title="Perplexity Evaluation" data-body="WikiText-103 test set (548 batches)&#10;Target: PPL ≤ 15.2&#10;Demonstrates perplexity-quality mismatch&#10;Low PPL ≠ perfect text quality">
+        <rect class="node-body node-wait" id="node-ppl-body" x="130" y="520" width="110" height="46" rx="12"/>
+        <text class="node-label" x="185" y="538">Perplexity Eval</text>
+        <text class="node-sublabel" x="185" y="552">test set · target</text>
+        <text class="node-sublabel" x="185" y="563" id="node-ppl-text">PPL target: 15.2</text>
+      </g>
+
+      <!-- Section labels -->
+      <text x="30" y="50" fill="rgba(6,182,212,0.6)" font-size="10" font-family="Inter" font-weight="600" letter-spacing="2">INFRASTRUCTURE</text>
+      <text x="270" y="130" fill="rgba(139,92,246,0.6)" font-size="10" font-family="Inter" font-weight="600" letter-spacing="2">MODEL ARCHITECTURE</text>
+      <text x="590" y="278" fill="rgba(59,130,246,0.7)" font-size="10" font-family="Inter" font-weight="600" letter-spacing="2">TRAINING ENGINE</text>
+      <text x="590" y="445" fill="rgba(74,85,104,0.7)" font-size="10" font-family="Inter" font-weight="600" letter-spacing="2">EVALUATION</text>
+      <text x="320" y="482" fill="rgba(74,85,104,0.7)" font-size="10" font-family="Inter" font-weight="600" letter-spacing="2">INFERENCE</text>
+    </svg>
+  </div>
+
+  <!-- Sidebar -->
+  <div class="sidebar">
+
+    <!-- Phase -->
+    <div class="sidebar-section">
+      <div class="section-title">Current Phase</div>
+      <div class="phase-badge" id="phase-badge">
+        <div class="pulse-dot"></div>
+        <span id="phase-text">Loading...</span>
+      </div>
+      <div style="font-size:12px;color:var(--dim);line-height:1.7;" id="phase-desc">
+        Connecting to training process...
+      </div>
+    </div>
+
+    <!-- Overall Progress -->
+    <div class="sidebar-section">
+      <div class="section-title">Training Progress</div>
+      <div class="progress-container">
+        <div class="progress-header">
+          <span style="color:var(--text);font-size:13px;">Steps</span>
+          <span style="color:var(--accent);font-size:13px;font-family:'JetBrains Mono',monospace;" id="prog-steps">—</span>
+        </div>
+        <div class="progress-track"><div class="progress-fill" id="prog-fill" style="width:0%"></div></div>
+      </div>
+      <div class="progress-container" style="margin-top:10px;">
+        <div class="progress-header">
+          <span style="color:var(--text);font-size:13px;">PPL to Target</span>
+          <span style="color:var(--green);font-size:13px;font-family:'JetBrains Mono',monospace;" id="prog-ppl-label">—</span>
+        </div>
+        <div class="progress-track"><div class="progress-fill" id="prog-ppl-fill" style="width:0%;background:linear-gradient(90deg,var(--green),var(--cyan))"></div></div>
+      </div>
+    </div>
+
+    <!-- Val history mini-chart -->
+    <div class="sidebar-section">
+      <div class="section-title">Validation PPL History</div>
+      <svg id="val-chart" height="100" viewBox="0 0 280 100">
+        <text id="val-empty" x="140" y="55" text-anchor="middle" fill="rgba(74,85,104,0.7)" font-size="12" font-family="Inter">First val at step 2,000</text>
+      </svg>
+    </div>
+
+    <!-- Loss curve mini -->
+    <div class="sidebar-section">
+      <div class="section-title">Training Loss Curve</div>
+      <svg id="loss-chart" height="100" viewBox="0 0 280 100">
+        <text id="loss-empty" x="140" y="55" text-anchor="middle" fill="rgba(74,85,104,0.7)" font-size="12" font-family="Inter">Loading...</text>
+      </svg>
+    </div>
+
+    <!-- Event log -->
+    <div class="sidebar-section" style="flex:1;">
+      <div class="section-title">Event Log</div>
+      <div class="log-list" id="log-list">
+        <div class="log-entry"><span class="log-time">--:--:--</span> Connecting...</div>
+      </div>
+    </div>
+
+    <!-- Model Architecture breakdown -->
+    <div class="sidebar-section">
+      <div class="section-title">Architecture Specs</div>
+      <table style="width:100%;font-size:12px;border-collapse:collapse;">
+        <tr><td style="color:var(--dim);padding:3px 0;">Params</td><td style="color:var(--text);text-align:right;font-family:'JetBrains Mono',monospace;">123,634,944</td></tr>
+        <tr><td style="color:var(--dim);padding:3px 0;">Layers</td><td style="color:var(--text);text-align:right;font-family:'JetBrains Mono',monospace;">12</td></tr>
+        <tr><td style="color:var(--dim);padding:3px 0;">Heads</td><td style="color:var(--text);text-align:right;font-family:'JetBrains Mono',monospace;">6</td></tr>
+        <tr><td style="color:var(--dim);padding:3px 0;">d_model</td><td style="color:var(--text);text-align:right;font-family:'JetBrains Mono',monospace;">768</td></tr>
+        <tr><td style="color:var(--dim);padding:3px 0;">d_qk / d_v</td><td style="color:var(--text);text-align:right;font-family:'JetBrains Mono',monospace;">128 / 256</td></tr>
+        <tr><td style="color:var(--dim);padding:3px 0;">d_ff</td><td style="color:var(--text);text-align:right;font-family:'JetBrains Mono',monospace;">1,536</td></tr>
+        <tr><td style="color:var(--dim);padding:3px 0;">Vocab</td><td style="color:var(--text);text-align:right;font-family:'JetBrains Mono',monospace;">50,257</td></tr>
+        <tr><td style="color:var(--dim);padding:3px 0;">Seq len</td><td style="color:var(--text);text-align:right;font-family:'JetBrains Mono',monospace;">512</td></tr>
+        <tr><td style="color:var(--dim);padding:3px 0;">Decay γ</td><td style="color:var(--text);text-align:right;font-family:'JetBrains Mono',monospace;">0.969–0.999</td></tr>
+        <tr><td style="color:var(--dim);padding:3px 0;">Target PPL</td><td style="color:var(--green);text-align:right;font-family:'JetBrains Mono',monospace;">≤ 15.2</td></tr>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Tooltip logic + data fetch -->
+<script>
+// ── Tooltip ──────────────────────────────────────────────────────────────────
+const tooltip = document.getElementById('tooltip');
+document.querySelectorAll('.node-group').forEach(g => {
+  g.addEventListener('mouseenter', e => {
+    const title = g.dataset.title;
+    const body  = (g.dataset.body || '').replace(/&#10;/g, '\n');
+    document.getElementById('tt-title').textContent = title;
+    document.getElementById('tt-body').innerHTML = body.replace(/\n/g, '<br>');
+    tooltip.style.display = 'block';
+  });
+  g.addEventListener('mousemove', e => {
+    tooltip.style.left = (e.clientX + 16) + 'px';
+    tooltip.style.top  = (e.clientY - 10) + 'px';
+  });
+  g.addEventListener('mouseleave', () => { tooltip.style.display = 'none'; });
+});
+
+// ── Mini chart helper ─────────────────────────────────────────────────────────
+function drawLineChart(svgId, data, color, label) {
+  const svg = document.getElementById(svgId);
+  const emptyEl = svg.querySelector('text');
+  if (!data || data.length === 0) {
+    if (emptyEl) emptyEl.style.display = '';
+    return;
+  }
+  if (emptyEl) emptyEl.style.display = 'none';
+
+  // Remove old paths
+  svg.querySelectorAll('.chart-el').forEach(e => e.remove());
+
+  const W = 280, H = 100, PAD = 14;
+  const xs = data.map((_, i) => PAD + (i / Math.max(data.length - 1, 1)) * (W - 2*PAD));
+  const minV = Math.min(...data) * 0.95;
+  const maxV = Math.max(...data) * 1.05;
+  const ys = data.map(v => PAD + (1 - (v - minV) / (maxV - minV)) * (H - 2*PAD));
+
+  // Area
+  const area = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  let aPath = `M ${xs[0]} ${H - PAD}`;
+  xs.forEach((x, i) => { aPath += ` L ${x} ${ys[i]}`; });
+  aPath += ` L ${xs[xs.length-1]} ${H-PAD} Z`;
+  area.setAttribute('d', aPath);
+  area.setAttribute('fill', color.replace('1)', '0.12)').replace('rgb(', 'rgba('));
+  area.setAttribute('class', 'chart-el');
+  svg.appendChild(area);
+
+  // Line
+  const line = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  let lPath = `M ${xs[0]} ${ys[0]}`;
+  for (let i = 1; i < xs.length; i++) {
+    const cx = (xs[i-1] + xs[i]) / 2;
+    lPath += ` C ${cx} ${ys[i-1]} ${cx} ${ys[i]} ${xs[i]} ${ys[i]}`;
+  }
+  line.setAttribute('d', lPath);
+  line.setAttribute('fill', 'none');
+  line.setAttribute('stroke', color);
+  line.setAttribute('stroke-width', '2');
+  line.setAttribute('class', 'chart-el');
+  svg.appendChild(line);
+
+  // Dots
+  xs.forEach((x, i) => {
+    const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    dot.setAttribute('cx', x); dot.setAttribute('cy', ys[i]); dot.setAttribute('r', '3');
+    dot.setAttribute('fill', color); dot.setAttribute('class', 'chart-el');
+    svg.appendChild(dot);
+  });
+
+  // Last value label
+  const txt = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+  txt.setAttribute('x', xs[xs.length-1]); txt.setAttribute('y', ys[ys.length-1] - 6);
+  txt.setAttribute('fill', color); txt.setAttribute('font-size', '10');
+  txt.setAttribute('font-family', 'JetBrains Mono, monospace');
+  txt.setAttribute('text-anchor', 'middle'); txt.setAttribute('class', 'chart-el');
+  txt.textContent = data[data.length-1].toFixed(1);
+  svg.appendChild(txt);
+}
+
+// ── State update ──────────────────────────────────────────────────────────────
+let lastLog = [];
+let refreshCount = 0;
+
+function updateNodeStatus(nodeId, bodyId, status) {
+  const body = document.getElementById(bodyId);
+  if (!body) return;
+  body.className = 'node-body node-' + status;
+}
+
+async function fetchAndUpdate() {
+  try {
+    // Fetch state
+    const stRes  = await fetch('/api/state?t=' + Date.now());
+    const logRes = await fetch('/api/log?t=' + Date.now());
+    const state  = await stRes.json();
+    const logRows = await logRes.json();
+
+    refreshCount++;
+    const now = new Date();
+    document.getElementById('refresh-counter').textContent =
+      `Last refresh: ${now.toLocaleTimeString()} (#${refreshCount})`;
+
+    // Metrics bar
+    const step  = state.step || 0;
+    const total = state.total_steps || 50000;
+    const pct   = (step / total * 100);
+    document.getElementById('m-step').textContent  = step.toLocaleString();
+    document.getElementById('m-step-pct').textContent = `${pct.toFixed(2)}% of ${total.toLocaleString()}`;
+    document.getElementById('m-loss').textContent  = state.loss ? state.loss.toFixed(4) : '—';
+    document.getElementById('m-ppl').textContent   = state.ppl  ? state.ppl.toFixed(1) : '—';
+    document.getElementById('m-lr').textContent    = state.lr   || '—';
+    document.getElementById('m-gpu').textContent   = state.gpu_gb ? state.gpu_gb.toFixed(1)+'GB' : '—';
+    document.getElementById('m-speed').textContent = state.speed ? state.speed.toFixed(3) : '—';
+    document.getElementById('m-eta').textContent   = state.eta  || '—';
+
+    // Val PPL
+    const bestVal = state.best_val_ppl;
+    const valHistory = state.val_history || [];
+    if (valHistory.length > 0) {
+      const lastVal = valHistory[valHistory.length - 1][1];
+      document.getElementById('m-val').textContent = lastVal.toFixed(1);
+    } else {
+      document.getElementById('m-val').textContent = 'pending';
+    }
+
+    // Phase
+    const phase = state.phase || 'Training';
+    document.getElementById('phase-text').textContent = phase;
+    document.getElementById('phase-badge').dataset.phase = phase;
+    const phaseDescs = {
+      'Warmup':       'LR is linearly increasing from 0 to 3×10⁻⁴ over 1,000 steps. Model is learning basic patterns.',
+      'Cosine Decay': 'LR decays via cosine schedule. Model is fine-tuning weights for lower perplexity.',
+      'Validation':   'Running full validation pass on WikiText-103 validation set (478 batches).',
+      'Complete':     'Training complete! Running final test evaluation.',
+      'Initializing': 'Setting up model, loading dataset...',
+    };
+    document.getElementById('phase-desc').textContent =
+      phaseDescs[phase] || 'Training in progress...';
+
+    // Progress bars
+    document.getElementById('prog-fill').style.width = pct + '%';
+    document.getElementById('prog-steps').textContent = `${step.toLocaleString()} / ${total.toLocaleString()}`;
+
+    const target = 15.2;
+    const ppl = state.ppl || 10000;
+    const startPpl = 10000;
+    const pplProg = Math.max(0, Math.min(100,
+      (Math.log10(startPpl) - Math.log10(ppl)) / (Math.log10(startPpl) - Math.log10(target)) * 100
+    ));
+    document.getElementById('prog-ppl-fill').style.width = pplProg + '%';
+    document.getElementById('prog-ppl-label').textContent =
+      ppl ? `${ppl.toFixed(1)} → ${target}` : '—';
+
+    // SVG node live updates
+    document.getElementById('node-step-text').textContent = `step ${step.toLocaleString()} / ${total.toLocaleString()}`;
+    document.getElementById('node-phase-text').textContent = phase;
+    document.getElementById('node-loss-text').textContent = state.loss ? `loss ${state.loss.toFixed(3)}` : 'loss —';
+    document.getElementById('node-lr-text').textContent = `LR: ${state.lr || '—'}`;
+
+    // Update validation node if we have history
+    if (valHistory.length > 0) {
+      const lastValPpl = valHistory[valHistory.length-1][1];
+      document.getElementById('node-val-body').className = 'node-body node-done';
+      document.getElementById('node-val-text').textContent = `best: ${lastValPpl.toFixed(1)}`;
+      document.getElementById('node-best-body').className = 'node-body node-done';
+      document.getElementById('node-best-text').textContent = `val_ppl: ${lastValPpl.toFixed(1)}`;
+      // Activate edge
+      const edgeVal = document.getElementById('edge-train-val');
+      if (edgeVal) { edgeVal.classList.add('edge-active'); edgeVal.setAttribute('stroke','rgba(16,185,129,0.6)'); edgeVal.setAttribute('marker-end','url(#arrow-green)'); }
+    }
+
+    // If training complete, update generation nodes
+    if (step >= total) {
+      document.getElementById('node-gen-body').className = 'node-body node-done';
+      document.getElementById('node-ppl-body').className = 'node-body node-done';
+      document.getElementById('status-text').textContent = 'Complete';
+    }
+
+    // Mini charts
+    if (logRows.length > 0) {
+      document.getElementById('loss-empty').style.display = 'none';
+      const losses = logRows.map(r => r.train_loss);
+      drawLineChart('loss-chart', losses, 'rgb(251,191,36)', 'loss');
+
+      const valRows = logRows.filter(r => r.val_ppl !== null);
+      if (valRows.length > 0) {
+        document.getElementById('val-empty').style.display = 'none';
+        drawLineChart('val-chart', valRows.map(r => r.val_ppl), 'rgb(52,211,153)', 'val_ppl');
+      }
+    }
+
+    // Event log (new entries)
+    if (logRows.length !== lastLog.length) {
+      const container = document.getElementById('log-list');
+      container.innerHTML = '';
+      const recent = logRows.slice(-10).reverse();
+      recent.forEach(row => {
+        const el = document.createElement('div');
+        const isVal = row.val_ppl !== null;
+        el.className = 'log-entry ' + (isVal ? 'val' : 'step');
+        el.innerHTML = `<span class="log-time">step ${row.step.toLocaleString()}</span>&nbsp;
+          loss=${row.train_loss.toFixed(4)}&nbsp;ppl=${row.train_ppl.toFixed(1)}
+          ${isVal ? `<br><b style="color:var(--green)">val_ppl=${row.val_ppl.toFixed(2)}</b>` : ''}`;
+        container.appendChild(el);
+      });
+      lastLog = logRows;
+    }
+
+    // Also add state val_history to log if any
+    if (valHistory.length > 0 && logRows.length === 0) {
+      const container = document.getElementById('log-list');
+      container.innerHTML = '';
+      valHistory.slice(-8).reverse().forEach(([s, p]) => {
+        const el = document.createElement('div');
+        el.className = 'log-entry val';
+        el.innerHTML = `<span class="log-time">step ${s.toLocaleString()}</span>&nbsp;val_ppl=<b style="color:var(--green)">${p.toFixed(2)}</b>`;
+        container.appendChild(el);
+      });
+    }
+
+  } catch (err) {
+    document.getElementById('refresh-counter').textContent = 'Connection error — retrying...';
+    document.getElementById('status-text').textContent = 'Reconnecting';
+    const pill = document.getElementById('status-pill');
+    pill.style.background = 'rgba(239,68,68,0.12)';
+    pill.style.borderColor = 'rgba(239,68,68,0.3)';
+    pill.style.color = 'var(--red)';
+  }
+}
+
+// Initial fetch + poll every 5s
+fetchAndUpdate();
+setInterval(fetchAndUpdate, 5000);
+</script>
+</body>
+</html>

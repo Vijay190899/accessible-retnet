@@ -1,0 +1,12 @@
+--index-url https://download.pytorch.org/whl/cu118
+torch==2.1.2+cu118
+torchvision==0.16.2+cu118
+torchaudio==2.1.2+cu118
+
+--extra-index-url https://pypi.org/simple
+transformers>=4.38.0
+datasets>=2.18.0
+tokenizers>=0.15.0
+numpy>=1.26.0
+tqdm>=4.66.0
+rich>=13.7.0
