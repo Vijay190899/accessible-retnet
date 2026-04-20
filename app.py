@@ -1,21 +1,18 @@
 """
-RetNet SFT — Local Web Frontend.
+RetNet — Local Text Generation UI.
 
-Hosts a simple browser UI to test generation from the fine-tuned model.
+Loads the pretrained base model and serves a browser UI for
+free-form text completion.
 
 Usage:
-  python app.py                  # loads checkpoints_sft/best_sft.pt
-  python app.py --port 5000
-  python app.py --base            # load base pretrained model instead
-
-Then open: http://localhost:5000
+  python app.py              # runs on http://localhost:5000
+  python app.py --port 8080
 """
 
 import sys
 import io
 import argparse
 import warnings
-import math
 from pathlib import Path
 
 if sys.stdout.encoding != "utf-8":
@@ -36,7 +33,7 @@ _tokenizer = None
 _device    = None
 
 
-def load_model(base_mode=False):
+def load_model():
     global _model, _tokenizer, _device
 
     _device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -45,25 +42,17 @@ def load_model(base_mode=False):
     _tokenizer = GPT2TokenizerFast.from_pretrained("gpt2")
     _tokenizer.pad_token = _tokenizer.eos_token
 
-    if base_mode:
-        candidates = [
-            Path(__file__).parent / "checkpoints" / "best_model.pt",
-            Path(__file__).parent / "checkpoints" / "final_model.pt",
-        ]
-        label = "base"
-    else:
-        candidates = [
-            Path(__file__).parent / "checkpoints_sft" / "best_sft.pt",
-            Path(__file__).parent / "checkpoints_sft" / "latest_sft.pt",
-        ]
-        label = "SFT"
-
+    candidates = [
+        Path(__file__).parent / "checkpoints" / "best_model.pt",
+        Path(__file__).parent / "checkpoints" / "final_model.pt",
+        Path(__file__).parent / "checkpoints" / "latest.pt",
+    ]
     ckpt_path = next((p for p in candidates if p.exists()), None)
     if ckpt_path is None:
-        print(f"[App] ERROR: No {label} checkpoint found.")
+        print("[App] ERROR: No checkpoint found in checkpoints/")
         sys.exit(1)
 
-    print(f"[App] Loading {label} checkpoint: {ckpt_path}")
+    print(f"[App] Loading: {ckpt_path}")
     ckpt   = torch.load(ckpt_path, map_location=_device)
     config = RetNetConfig()
     if "config" in ckpt:
@@ -74,34 +63,15 @@ def load_model(base_mode=False):
     _model.load_state_dict(ckpt["model"])
     _model.eval()
 
-    val_ppl = ckpt.get("val_ppl", "?")
-    step    = ckpt.get("step",    "?")
-    print(f"[App] Loaded — Step={step} | Val PPL={val_ppl}")
+    print(f"[App] RetNet 124M loaded — Step={ckpt.get('step','?')} | Val PPL={ckpt.get('val_ppl','?')}")
     print(f"[App] Device: {_device}")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Flask app
+# Flask
 # ─────────────────────────────────────────────────────────────────────────────
 
 app = Flask(__name__, static_folder="frontend", static_url_path="")
-
-ALPACA_WITH_INPUT = """\
-### Instruction:
-{instruction}
-
-### Input:
-{input}
-
-### Response:
-"""
-
-ALPACA_NO_INPUT = """\
-### Instruction:
-{instruction}
-
-### Response:
-"""
 
 
 @app.route("/")
@@ -112,20 +82,14 @@ def index():
 @app.route("/generate", methods=["POST"])
 def generate():
     data        = request.get_json()
-    instruction = data.get("instruction", "").strip()
-    inp         = data.get("input", "").strip()
+    prompt      = data.get("prompt", "").strip()
     max_tokens  = int(data.get("max_tokens",  200))
-    temperature = float(data.get("temperature", 0.7))
+    temperature = float(data.get("temperature", 0.8))
     top_p       = float(data.get("top_p",       0.9))
     rep_penalty = float(data.get("rep_penalty", 1.3))
 
-    if not instruction:
-        return jsonify({"error": "Instruction cannot be empty."}), 400
-
-    if inp:
-        prompt = ALPACA_WITH_INPUT.format(instruction=instruction, input=inp)
-    else:
-        prompt = ALPACA_NO_INPUT.format(instruction=instruction)
+    if not prompt:
+        return jsonify({"error": "Prompt cannot be empty."}), 400
 
     try:
         ids = torch.tensor(
@@ -142,15 +106,9 @@ def generate():
                 ngram_block=3,
             )
 
-        new_ids  = out[0, ids.shape[1]:].tolist()
-        response = _tokenizer.decode(new_ids, skip_special_tokens=True)
-
-        # Trim at section separator or double newline
-        for sep in ["\n\n", "###"]:
-            if sep in response:
-                response = response[:response.index(sep)]
-
-        return jsonify({"response": response.strip()})
+        new_ids    = out[0, ids.shape[1]:].tolist()
+        completion = _tokenizer.decode(new_ids, skip_special_tokens=True)
+        return jsonify({"completion": completion})
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -170,13 +128,11 @@ def health():
 # ─────────────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="RetNet Local Web UI")
+    parser = argparse.ArgumentParser()
     parser.add_argument("--port", type=int, default=5000)
-    parser.add_argument("--base", action="store_true", help="Load base model instead of SFT")
     args = parser.parse_args()
 
-    load_model(base_mode=args.base)
+    load_model()
 
-    print(f"\n[App] Starting server on http://localhost:{args.port}")
-    print(f"[App] Open your browser to http://localhost:{args.port}\n")
+    print(f"\n[App] Open http://localhost:{args.port}\n")
     app.run(host="0.0.0.0", port=args.port, debug=False)

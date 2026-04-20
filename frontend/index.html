@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>RetNet SFT — Generation UI</title>
+  <title>RetNet 124M</title>
   <style>
     :root {
       --bg:      #0f1117;
@@ -14,7 +14,7 @@
       --text:    #e2e8f0;
       --muted:   #718096;
       --danger:  #fc8181;
-      --radius:  10px;
+      --r:       10px;
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -27,7 +27,7 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      padding: 2rem 1rem;
+      padding: 2rem 1rem 4rem;
     }
 
     header {
@@ -36,7 +36,7 @@
     }
 
     header h1 {
-      font-size: 1.8rem;
+      font-size: 1.7rem;
       font-weight: 700;
       background: linear-gradient(135deg, var(--accent), var(--accent2));
       -webkit-background-clip: text;
@@ -44,91 +44,123 @@
       background-clip: text;
     }
 
-    header p {
-      color: var(--muted);
-      font-size: 0.9rem;
-      margin-top: 0.4rem;
-    }
+    header p { color: var(--muted); font-size: 0.85rem; margin-top: 0.4rem; }
 
-    .card {
+    .wrap { width: 100%; max-width: 800px; }
+
+    /* ── Prompt box ── */
+    .prompt-box {
       background: var(--surface);
       border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 1.5rem;
-      width: 100%;
-      max-width: 760px;
-      margin-bottom: 1.2rem;
+      border-radius: var(--r);
+      padding: 1.2rem;
+      margin-bottom: 1rem;
     }
 
-    label {
+    .prompt-box label {
       display: block;
-      font-size: 0.8rem;
-      font-weight: 600;
+      font-size: 0.75rem;
+      font-weight: 700;
       text-transform: uppercase;
-      letter-spacing: 0.06em;
+      letter-spacing: 0.07em;
       color: var(--muted);
-      margin-bottom: 0.5rem;
+      margin-bottom: 0.6rem;
     }
 
-    textarea, input[type="number"], input[type="range"] {
+    #prompt {
       width: 100%;
       background: var(--bg);
       border: 1px solid var(--border);
       border-radius: 6px;
       color: var(--text);
-      padding: 0.7rem 0.9rem;
+      padding: 0.75rem 1rem;
       font-size: 0.95rem;
-      font-family: inherit;
+      font-family: 'Consolas', 'Fira Code', monospace;
       resize: vertical;
+      min-height: 110px;
       transition: border 0.2s;
+      line-height: 1.6;
     }
 
-    textarea:focus, input[type="number"]:focus {
-      outline: none;
-      border-color: var(--accent);
+    #prompt:focus { outline: none; border-color: var(--accent); }
+
+    /* ── Quick prompts ── */
+    .quick-label {
+      font-size: 0.73rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: var(--muted);
+      margin-bottom: 0.45rem;
     }
 
-    #instruction { min-height: 90px; }
-    #input-ctx   { min-height: 60px; }
+    .pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.45rem;
+      margin-bottom: 1rem;
+    }
 
-    .params-grid {
+    .pill {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 0.28rem 0.8rem;
+      font-size: 0.78rem;
+      color: var(--muted);
+      cursor: pointer;
+      transition: border-color 0.15s, color 0.15s;
+      user-select: none;
+    }
+    .pill:hover { border-color: var(--accent); color: var(--text); }
+
+    /* ── Params ── */
+    .params {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      padding: 1rem 1.2rem;
+      margin-bottom: 1rem;
       display: grid;
       grid-template-columns: repeat(2, 1fr);
-      gap: 1rem;
-      margin-top: 0.5rem;
+      gap: 0.9rem 1.5rem;
     }
 
-    .param-row {
-      display: flex;
-      flex-direction: column;
-      gap: 0.4rem;
+    .param label {
+      display: block;
+      font-size: 0.73rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      margin-bottom: 0.35rem;
     }
 
-    .param-row .slider-row {
+    .slider-row {
       display: flex;
       align-items: center;
-      gap: 0.7rem;
+      gap: 0.6rem;
     }
 
-    .param-row input[type="range"] {
-      padding: 0;
+    .slider-row input[type="range"] {
       flex: 1;
       accent-color: var(--accent);
       cursor: pointer;
     }
 
-    .param-row .val-badge {
-      font-size: 0.85rem;
+    .badge {
+      font-size: 0.82rem;
       font-weight: 600;
       color: var(--accent2);
-      min-width: 2.8rem;
+      min-width: 2.6rem;
       text-align: right;
     }
 
+    /* ── Buttons ── */
     .btn-row {
       display: flex;
-      gap: 0.8rem;
-      margin-top: 1rem;
+      gap: 0.7rem;
+      margin-bottom: 1.4rem;
     }
 
     button {
@@ -138,13 +170,13 @@
       font-size: 0.95rem;
       font-weight: 600;
       cursor: pointer;
-      transition: opacity 0.2s, transform 0.1s;
+      transition: opacity 0.15s, transform 0.1s;
     }
-
     button:active { transform: scale(0.97); }
+    button:disabled { opacity: 0.45; cursor: not-allowed; }
 
-    #btn-generate {
-      background: linear-gradient(135deg, var(--accent), #6055e0);
+    #btn-gen {
+      background: linear-gradient(135deg, var(--accent), #5c51d4);
       color: #fff;
       flex: 1;
     }
@@ -154,259 +186,260 @@
       color: var(--muted);
     }
 
-    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    /* ── Output ── */
+    #output-wrap { display: none; }
 
-    #response-card { display: none; }
-
-    #response-card h2 {
-      font-size: 0.85rem;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      color: var(--accent2);
-      margin-bottom: 0.8rem;
+    .output-header {
       display: flex;
       align-items: center;
-      gap: 0.5rem;
+      justify-content: space-between;
+      margin-bottom: 0.5rem;
     }
 
-    #response-text {
-      background: var(--bg);
+    .output-header span {
+      font-size: 0.73rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: var(--accent2);
+    }
+
+    #copy-btn {
+      background: none;
       border: 1px solid var(--border);
-      border-radius: 6px;
-      padding: 1rem;
-      font-size: 0.95rem;
-      line-height: 1.7;
+      border-radius: 4px;
+      color: var(--muted);
+      font-size: 0.75rem;
+      padding: 0.2rem 0.6rem;
+    }
+    #copy-btn:hover { border-color: var(--accent2); color: var(--accent2); }
+
+    #output-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      padding: 1.1rem 1.2rem;
+      font-family: 'Consolas', 'Fira Code', monospace;
+      font-size: 0.9rem;
+      line-height: 1.75;
       white-space: pre-wrap;
       word-break: break-word;
       min-height: 80px;
     }
 
-    #response-text.error { color: var(--danger); border-color: var(--danger); }
+    /* full prompt + completion displayed together */
+    .part-prompt   { color: var(--muted); }
+    .part-new      { color: var(--text); }
+    .part-error    { color: var(--danger); }
 
     .spinner {
       display: inline-block;
-      width: 14px; height: 14px;
+      width: 13px; height: 13px;
       border: 2px solid var(--border);
       border-top-color: var(--accent);
       border-radius: 50%;
-      animation: spin 0.7s linear infinite;
+      animation: spin 0.65s linear infinite;
     }
-
     @keyframes spin { to { transform: rotate(360deg); } }
 
-    .demo-pills {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.5rem;
-      margin-top: 0.8rem;
-    }
-
-    .pill {
-      background: var(--bg);
-      border: 1px solid var(--border);
-      border-radius: 20px;
-      padding: 0.3rem 0.85rem;
-      font-size: 0.8rem;
-      color: var(--muted);
-      cursor: pointer;
-      transition: border-color 0.2s, color 0.2s;
-    }
-
-    .pill:hover { border-color: var(--accent); color: var(--text); }
-
     footer {
-      margin-top: 2rem;
-      font-size: 0.78rem;
+      margin-top: 2.5rem;
+      font-size: 0.75rem;
       color: var(--muted);
       text-align: center;
     }
-
     footer a { color: var(--accent); text-decoration: none; }
   </style>
 </head>
 <body>
 
 <header>
-  <h1>RetNet SFT — Generation UI</h1>
-  <p>Accessible RetNet 124M &nbsp;·&nbsp; Fine-tuned on Stanford Alpaca &nbsp;·&nbsp; RTX 2070</p>
+  <h1>RetNet 124M</h1>
+  <p>Accessible RetNet &nbsp;·&nbsp; Pretrained on WikiText-103 &nbsp;·&nbsp; RTX 2070</p>
 </header>
 
-<!-- Input card -->
-<div class="card">
-  <label for="instruction">Instruction</label>
-  <textarea id="instruction" placeholder="E.g. Explain what a neural network is in simple terms."></textarea>
+<div class="wrap">
 
-  <div style="margin-top:1rem">
-    <label for="input-ctx">Input Context <span style="font-weight:400;text-transform:none;">(optional)</span></label>
-    <textarea id="input-ctx" placeholder="Optional input or context for the instruction..."></textarea>
+  <!-- Prompt -->
+  <div class="prompt-box">
+    <label for="prompt">Prompt</label>
+    <textarea id="prompt" placeholder="Start typing and the model will continue your text…
+
+e.g.  The history of artificial intelligence begins with"></textarea>
   </div>
 
-  <div style="margin-top:1.2rem">
-    <label>Quick prompts</label>
-    <div class="demo-pills" id="demo-pills"></div>
-  </div>
-</div>
+  <!-- Quick prompts -->
+  <div class="quick-label">Quick starts</div>
+  <div class="pills" id="pills"></div>
 
-<!-- Parameters card -->
-<div class="card">
-  <label>Generation Parameters</label>
-  <div class="params-grid">
-    <div class="param-row">
+  <!-- Parameters -->
+  <div class="params">
+    <div class="param">
       <label>Max new tokens</label>
       <div class="slider-row">
-        <input type="range" id="max-tokens" min="20" max="400" value="200" step="10">
-        <span class="val-badge" id="max-tokens-val">200</span>
+        <input type="range" id="max-tokens" min="20" max="500" value="200" step="10">
+        <span class="badge" id="max-tokens-v">200</span>
       </div>
     </div>
-    <div class="param-row">
+    <div class="param">
       <label>Temperature</label>
       <div class="slider-row">
-        <input type="range" id="temperature" min="0.1" max="1.5" value="0.7" step="0.05">
-        <span class="val-badge" id="temperature-val">0.70</span>
+        <input type="range" id="temperature" min="0.1" max="1.5" value="0.8" step="0.05">
+        <span class="badge" id="temperature-v">0.80</span>
       </div>
     </div>
-    <div class="param-row">
+    <div class="param">
       <label>Top-p (nucleus)</label>
       <div class="slider-row">
         <input type="range" id="top-p" min="0.5" max="1.0" value="0.9" step="0.01">
-        <span class="val-badge" id="top-p-val">0.90</span>
+        <span class="badge" id="top-p-v">0.90</span>
       </div>
     </div>
-    <div class="param-row">
+    <div class="param">
       <label>Repetition penalty</label>
       <div class="slider-row">
         <input type="range" id="rep-penalty" min="1.0" max="2.0" value="1.3" step="0.05">
-        <span class="val-badge" id="rep-penalty-val">1.30</span>
+        <span class="badge" id="rep-penalty-v">1.30</span>
       </div>
     </div>
   </div>
-</div>
 
-<!-- Buttons -->
-<div style="width:100%;max-width:760px">
+  <!-- Buttons -->
   <div class="btn-row">
-    <button id="btn-generate">&#9654;&nbsp; Generate</button>
+    <button id="btn-gen">&#9654;&nbsp; Generate</button>
     <button id="btn-clear">Clear</button>
   </div>
-</div>
 
-<!-- Response card -->
-<div class="card" id="response-card">
-  <h2 id="response-title">Response</h2>
-  <div id="response-text"></div>
+  <!-- Output -->
+  <div id="output-wrap">
+    <div class="output-header">
+      <span id="out-label">Completion</span>
+      <button id="copy-btn">Copy</button>
+    </div>
+    <div id="output-box"></div>
+  </div>
+
 </div>
 
 <footer>
-  RetNet — <a href="https://arxiv.org/abs/2307.08621" target="_blank">arxiv:2307.08621</a> &nbsp;·&nbsp;
+  RetNet &mdash; <a href="https://arxiv.org/abs/2307.08621" target="_blank">arxiv:2307.08621</a>
+  &nbsp;&middot;&nbsp;
   <a href="https://github.com/Vijay190899/accessible-retnet" target="_blank">GitHub</a>
+  &nbsp;&middot;&nbsp; Val PPL 15.09 on WikiText-103
 </footer>
 
 <script>
-  // ── Slider sync ──────────────────────────────────────────────────────────
-  const sliders = [
-    { id: "max-tokens",   valId: "max-tokens-val",   fmt: v => Math.round(v) },
-    { id: "temperature",  valId: "temperature-val",   fmt: v => parseFloat(v).toFixed(2) },
-    { id: "top-p",        valId: "top-p-val",         fmt: v => parseFloat(v).toFixed(2) },
-    { id: "rep-penalty",  valId: "rep-penalty-val",   fmt: v => parseFloat(v).toFixed(2) },
-  ];
-  sliders.forEach(({ id, valId, fmt }) => {
-    const el = document.getElementById(id);
-    const badge = document.getElementById(valId);
-    badge.textContent = fmt(el.value);
-    el.addEventListener("input", () => badge.textContent = fmt(el.value));
+  // ── Slider sync ──────────────────────────────────────────────────────
+  [
+    ["max-tokens",  v => String(Math.round(v))],
+    ["temperature", v => (+v).toFixed(2)],
+    ["top-p",       v => (+v).toFixed(2)],
+    ["rep-penalty", v => (+v).toFixed(2)],
+  ].forEach(([id, fmt]) => {
+    const sl = document.getElementById(id);
+    const bd = document.getElementById(id + "-v");
+    bd.textContent = fmt(sl.value);
+    sl.addEventListener("input", () => bd.textContent = fmt(sl.value));
   });
 
-  // ── Demo pills ────────────────────────────────────────────────────────────
-  const demos = [
-    "Explain what a neural network is in simple terms.",
-    "Write a short poem about the ocean.",
-    "What are three tips for staying productive at home?",
-    "Translate the following to French.",
-    "Summarize the text in one sentence.",
-    "What is the capital of France?",
-    "Give me a recipe for pancakes.",
+  // ── Quick-start pills ─────────────────────────────────────────────────
+  const PROMPTS = [
+    "The history of artificial intelligence begins with",
+    "In the year 2045, humanity discovered that",
+    "Neural networks are computational models inspired by",
+    "Once upon a time in a land far away,",
+    "The most important scientific discovery of the 21st century was",
+    "Deep learning has transformed the field of",
+    "The capital city of France is Paris, which",
   ];
 
-  const pillContainer = document.getElementById("demo-pills");
-  demos.forEach(text => {
-    const pill = document.createElement("div");
-    pill.className = "pill";
-    pill.textContent = text;
-    pill.addEventListener("click", () => {
-      document.getElementById("instruction").value = text;
-    });
-    pillContainer.appendChild(pill);
+  const pillBox = document.getElementById("pills");
+  PROMPTS.forEach(text => {
+    const p = document.createElement("div");
+    p.className = "pill";
+    p.textContent = text.length > 42 ? text.slice(0, 42) + "…" : text;
+    p.title = text;
+    p.onclick = () => { document.getElementById("prompt").value = text; };
+    pillBox.appendChild(p);
   });
 
-  // ── Generate ─────────────────────────────────────────────────────────────
-  const btnGenerate  = document.getElementById("btn-generate");
-  const btnClear     = document.getElementById("btn-clear");
-  const responseCard = document.getElementById("response-card");
-  const responseText = document.getElementById("response-text");
-  const responseTitle = document.getElementById("response-title");
+  // ── Generate ──────────────────────────────────────────────────────────
+  const btnGen    = document.getElementById("btn-gen");
+  const btnClear  = document.getElementById("btn-clear");
+  const outWrap   = document.getElementById("output-wrap");
+  const outBox    = document.getElementById("output-box");
+  const outLabel  = document.getElementById("out-label");
+  const copyBtn   = document.getElementById("copy-btn");
 
-  btnGenerate.addEventListener("click", async () => {
-    const instruction = document.getElementById("instruction").value.trim();
-    if (!instruction) {
-      alert("Please enter an instruction.");
-      return;
-    }
+  let lastCompletion = "";
 
-    btnGenerate.disabled = true;
-    btnGenerate.innerHTML = '<span class="spinner"></span>&nbsp; Generating…';
-    responseCard.style.display = "block";
-    responseTitle.innerHTML = '<span class="spinner"></span>&nbsp; Generating…';
-    responseText.textContent = "";
-    responseText.className = "";
+  btnGen.addEventListener("click", async () => {
+    const prompt = document.getElementById("prompt").value.trim();
+    if (!prompt) { alert("Please enter a prompt."); return; }
+
+    btnGen.disabled = true;
+    btnGen.innerHTML = '<span class="spinner"></span>&nbsp; Generating…';
+    outWrap.style.display = "block";
+    outLabel.innerHTML = '<span class="spinner"></span>&nbsp; Generating…';
+    outBox.innerHTML = "";
 
     try {
       const res = await fetch("/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          instruction,
-          input:        document.getElementById("input-ctx").value.trim(),
-          max_tokens:   parseInt(document.getElementById("max-tokens").value),
-          temperature:  parseFloat(document.getElementById("temperature").value),
-          top_p:        parseFloat(document.getElementById("top-p").value),
-          rep_penalty:  parseFloat(document.getElementById("rep-penalty").value),
+          prompt,
+          max_tokens:  +document.getElementById("max-tokens").value,
+          temperature: +document.getElementById("temperature").value,
+          top_p:       +document.getElementById("top-p").value,
+          rep_penalty: +document.getElementById("rep-penalty").value,
         }),
       });
 
       const data = await res.json();
       if (data.error) {
-        responseText.textContent = "Error: " + data.error;
-        responseText.className = "error";
-        responseTitle.textContent = "Error";
+        outBox.innerHTML = `<span class="part-error">Error: ${data.error}</span>`;
+        outLabel.textContent = "Error";
       } else {
-        responseText.textContent = data.response || "(empty response)";
-        responseTitle.textContent = "Response";
+        lastCompletion = data.completion || "";
+        // Show prompt dimmed + new text bright
+        outBox.innerHTML =
+          `<span class="part-prompt">${esc(prompt)}</span>` +
+          `<span class="part-new">${esc(lastCompletion)}</span>`;
+        outLabel.textContent = "Completion";
       }
-    } catch (err) {
-      responseText.textContent = "Network error: " + err.message;
-      responseText.className = "error";
-      responseTitle.textContent = "Error";
+    } catch (e) {
+      outBox.innerHTML = `<span class="part-error">Network error: ${e.message}</span>`;
+      outLabel.textContent = "Error";
     } finally {
-      btnGenerate.disabled = false;
-      btnGenerate.innerHTML = "&#9654;&nbsp; Generate";
+      btnGen.disabled = false;
+      btnGen.innerHTML = "&#9654;&nbsp; Generate";
     }
   });
 
   btnClear.addEventListener("click", () => {
-    document.getElementById("instruction").value = "";
-    document.getElementById("input-ctx").value = "";
-    responseCard.style.display = "none";
-    responseText.textContent = "";
-    responseText.className = "";
+    document.getElementById("prompt").value = "";
+    outWrap.style.display = "none";
+    outBox.innerHTML = "";
+    lastCompletion = "";
   });
 
-  // Allow Ctrl+Enter to submit
-  document.addEventListener("keydown", e => {
-    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
-      btnGenerate.click();
-    }
+  copyBtn.addEventListener("click", () => {
+    if (!lastCompletion) return;
+    navigator.clipboard.writeText(lastCompletion).then(() => {
+      copyBtn.textContent = "Copied!";
+      setTimeout(() => copyBtn.textContent = "Copy", 1500);
+    });
   });
+
+  // Ctrl+Enter to generate
+  document.addEventListener("keydown", e => {
+    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") btnGen.click();
+  });
+
+  function esc(s) {
+    return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  }
 </script>
 </body>
 </html>

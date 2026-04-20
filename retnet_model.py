@@ -565,8 +565,14 @@ class RetNetLM(nn.Module):
         generated = prompt_ids.clone()
 
         for step in range(max_new_tokens):
-            # Full parallel forward on the growing sequence
-            logits = self.forward(generated)          # (B, T, vocab)
+            # Full parallel forward on the growing sequence.
+            # MultiScaleRetention routes to recurrent mode when T==1, which
+            # returns a tuple and breaks LayerNorm in the next block.
+            # Pad to ≥2 tokens to force parallel mode; logits[:,-1] is still correct.
+            seq = generated
+            if seq.shape[1] == 1:
+                seq = torch.cat([torch.zeros_like(seq), seq], dim=1)
+            logits = self.forward(seq)                # (B, T, vocab)
             next_logits = logits[:, -1, :].float()   # (B, vocab) — last position
 
             # Repetition penalty
