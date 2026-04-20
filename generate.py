@@ -14,12 +14,17 @@ Usage:
 """
 
 import sys
+import io
 import math
 import argparse
 import warnings
 from pathlib import Path
 
 warnings.filterwarnings("ignore")
+
+# Force UTF-8 output on Windows to handle Unicode characters in generated text
+if sys.stdout.encoding != "utf-8":
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
 
 import torch
 import torch.nn.functional as F
@@ -118,7 +123,7 @@ def generate_text(
     ngram_block: int = 3,
 ) -> str:
     model.eval()
-    prompt_ids = tokenizer.encode(prompt, return_tensors="pt").to(device)
+    prompt_ids = torch.tensor([tokenizer.encode(prompt)], dtype=torch.long).to(device)
 
     print(f"\n[Generate] Prompt: '{prompt}'")
     print(f"  Params: temp={temperature}, top_p={top_p}, rep_pen={repetition_penalty}, ngram_block={ngram_block}")
