@@ -543,6 +543,64 @@ class RetNetLM(nn.Module):
 
         return generated
 
+    @torch.no_grad()
+    def generate_parallel(
+        self,
+        prompt_ids: torch.Tensor,
+        max_new_tokens: int = 200,
+        temperature: float = 0.8,
+        top_p: float = 0.9,
+        repetition_penalty: float = 1.3,
+        ngram_block: int = 3,
+    ) -> torch.Tensor:
+        """
+        Autoregressive generation using the PARALLEL forward at each step.
+        Uses the same GroupNorm statistics as training (computed over full T),
+        so generated text matches what the model actually learned.
+        Slower than recurrent mode (O(T^2)) but correct for this checkpoint.
+        prompt_ids: (B, T_prompt)
+        Returns: (B, T_prompt + max_new_tokens)
+        """
+        self.eval()
+        generated = prompt_ids.clone()
+
+        for step in range(max_new_tokens):
+            # Full parallel forward on the growing sequence
+            logits = self.forward(generated)          # (B, T, vocab)
+            next_logits = logits[:, -1, :].float()   # (B, vocab) — last position
+
+            # Repetition penalty
+            if repetition_penalty != 1.0:
+                for b in range(generated.shape[0]):
+                    for tid in set(generated[b].tolist()):
+                        if next_logits[b, tid] > 0:
+                            next_logits[b, tid] /= repetition_penalty
+                        else:
+                            next_logits[b, tid] *= repetition_penalty
+
+            # N-gram blocking
+            if ngram_block > 0 and generated.shape[1] >= ngram_block:
+                for b in range(generated.shape[0]):
+                    last_ng = tuple(generated[b, -(ngram_block - 1):].tolist())
+                    hist    = generated[b].tolist()
+                    blocked = {hist[i + ngram_block - 1]
+                               for i in range(len(hist) - ngram_block + 1)
+                               if tuple(hist[i:i + ngram_block - 1]) == last_ng}
+                    for tid in blocked:
+                        next_logits[b, tid] = float('-inf')
+
+            # Temperature + top-p nucleus sampling
+            next_logits = next_logits / max(temperature, 1e-5)
+            probs = F.softmax(next_logits, dim=-1)
+            sorted_probs, sorted_idx = torch.sort(probs, descending=True)
+            cum = sorted_probs.cumsum(dim=-1)
+            sorted_probs[cum - sorted_probs > top_p] = 0.0
+            sorted_probs /= sorted_probs.sum(dim=-1, keepdim=True).clamp(min=1e-10)
+            next_tok = sorted_idx.gather(1, torch.multinomial(sorted_probs, 1))
+            generated = torch.cat([generated, next_tok], dim=1)
+
+        return generated
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Quick Sanity Check

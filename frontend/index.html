@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RetNet SFT — Generation UI</title>
+  <style>
+    :root {
+      --bg:      #0f1117;
+      --surface: #1a1d27;
+      --border:  #2e3147;
+      --accent:  #7c6af7;
+      --accent2: #56cfb2;
+      --text:    #e2e8f0;
+      --muted:   #718096;
+      --danger:  #fc8181;
+      --radius:  10px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 2rem 1rem;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+
+    header h1 {
+      font-size: 1.8rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    header p {
+      color: var(--muted);
+      font-size: 0.9rem;
+      margin-top: 0.4rem;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.5rem;
+      width: 100%;
+      max-width: 760px;
+      margin-bottom: 1.2rem;
+    }
+
+    label {
+      display: block;
+      font-size: 0.8rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      margin-bottom: 0.5rem;
+    }
+
+    textarea, input[type="number"], input[type="range"] {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      padding: 0.7rem 0.9rem;
+      font-size: 0.95rem;
+      font-family: inherit;
+      resize: vertical;
+      transition: border 0.2s;
+    }
+
+    textarea:focus, input[type="number"]:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    #instruction { min-height: 90px; }
+    #input-ctx   { min-height: 60px; }
+
+    .params-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 1rem;
+      margin-top: 0.5rem;
+    }
+
+    .param-row {
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+
+    .param-row .slider-row {
+      display: flex;
+      align-items: center;
+      gap: 0.7rem;
+    }
+
+    .param-row input[type="range"] {
+      padding: 0;
+      flex: 1;
+      accent-color: var(--accent);
+      cursor: pointer;
+    }
+
+    .param-row .val-badge {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--accent2);
+      min-width: 2.8rem;
+      text-align: right;
+    }
+
+    .btn-row {
+      display: flex;
+      gap: 0.8rem;
+      margin-top: 1rem;
+    }
+
+    button {
+      padding: 0.65rem 1.4rem;
+      border-radius: 6px;
+      border: none;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.2s, transform 0.1s;
+    }
+
+    button:active { transform: scale(0.97); }
+
+    #btn-generate {
+      background: linear-gradient(135deg, var(--accent), #6055e0);
+      color: #fff;
+      flex: 1;
+    }
+
+    #btn-clear {
+      background: var(--border);
+      color: var(--muted);
+    }
+
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    #response-card { display: none; }
+
+    #response-card h2 {
+      font-size: 0.85rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--accent2);
+      margin-bottom: 0.8rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    #response-text {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 1rem;
+      font-size: 0.95rem;
+      line-height: 1.7;
+      white-space: pre-wrap;
+      word-break: break-word;
+      min-height: 80px;
+    }
+
+    #response-text.error { color: var(--danger); border-color: var(--danger); }
+
+    .spinner {
+      display: inline-block;
+      width: 14px; height: 14px;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .demo-pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-top: 0.8rem;
+    }
+
+    .pill {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 0.3rem 0.85rem;
+      font-size: 0.8rem;
+      color: var(--muted);
+      cursor: pointer;
+      transition: border-color 0.2s, color 0.2s;
+    }
+
+    .pill:hover { border-color: var(--accent); color: var(--text); }
+
+    footer {
+      margin-top: 2rem;
+      font-size: 0.78rem;
+      color: var(--muted);
+      text-align: center;
+    }
+
+    footer a { color: var(--accent); text-decoration: none; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>RetNet SFT — Generation UI</h1>
+  <p>Accessible RetNet 124M &nbsp;·&nbsp; Fine-tuned on Stanford Alpaca &nbsp;·&nbsp; RTX 2070</p>
+</header>
+
+<!-- Input card -->
+<div class="card">
+  <label for="instruction">Instruction</label>
+  <textarea id="instruction" placeholder="E.g. Explain what a neural network is in simple terms."></textarea>
+
+  <div style="margin-top:1rem">
+    <label for="input-ctx">Input Context <span style="font-weight:400;text-transform:none;">(optional)</span></label>
+    <textarea id="input-ctx" placeholder="Optional input or context for the instruction..."></textarea>
+  </div>
+
+  <div style="margin-top:1.2rem">
+    <label>Quick prompts</label>
+    <div class="demo-pills" id="demo-pills"></div>
+  </div>
+</div>
+
+<!-- Parameters card -->
+<div class="card">
+  <label>Generation Parameters</label>
+  <div class="params-grid">
+    <div class="param-row">
+      <label>Max new tokens</label>
+      <div class="slider-row">
+        <input type="range" id="max-tokens" min="20" max="400" value="200" step="10">
+        <span class="val-badge" id="max-tokens-val">200</span>
+      </div>
+    </div>
+    <div class="param-row">
+      <label>Temperature</label>
+      <div class="slider-row">
+        <input type="range" id="temperature" min="0.1" max="1.5" value="0.7" step="0.05">
+        <span class="val-badge" id="temperature-val">0.70</span>
+      </div>
+    </div>
+    <div class="param-row">
+      <label>Top-p (nucleus)</label>
+      <div class="slider-row">
+        <input type="range" id="top-p" min="0.5" max="1.0" value="0.9" step="0.01">
+        <span class="val-badge" id="top-p-val">0.90</span>
+      </div>
+    </div>
+    <div class="param-row">
+      <label>Repetition penalty</label>
+      <div class="slider-row">
+        <input type="range" id="rep-penalty" min="1.0" max="2.0" value="1.3" step="0.05">
+        <span class="val-badge" id="rep-penalty-val">1.30</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Buttons -->
+<div style="width:100%;max-width:760px">
+  <div class="btn-row">
+    <button id="btn-generate">&#9654;&nbsp; Generate</button>
+    <button id="btn-clear">Clear</button>
+  </div>
+</div>
+
+<!-- Response card -->
+<div class="card" id="response-card">
+  <h2 id="response-title">Response</h2>
+  <div id="response-text"></div>
+</div>
+
+<footer>
+  RetNet — <a href="https://arxiv.org/abs/2307.08621" target="_blank">arxiv:2307.08621</a> &nbsp;·&nbsp;
+  <a href="https://github.com/Vijay190899/accessible-retnet" target="_blank">GitHub</a>
+</footer>
+
+<script>
+  // ── Slider sync ──────────────────────────────────────────────────────────
+  const sliders = [
+    { id: "max-tokens",   valId: "max-tokens-val",   fmt: v => Math.round(v) },
+    { id: "temperature",  valId: "temperature-val",   fmt: v => parseFloat(v).toFixed(2) },
+    { id: "top-p",        valId: "top-p-val",         fmt: v => parseFloat(v).toFixed(2) },
+    { id: "rep-penalty",  valId: "rep-penalty-val",   fmt: v => parseFloat(v).toFixed(2) },
+  ];
+  sliders.forEach(({ id, valId, fmt }) => {
+    const el = document.getElementById(id);
+    const badge = document.getElementById(valId);
+    badge.textContent = fmt(el.value);
+    el.addEventListener("input", () => badge.textContent = fmt(el.value));
+  });
+
+  // ── Demo pills ────────────────────────────────────────────────────────────
+  const demos = [
+    "Explain what a neural network is in simple terms.",
+    "Write a short poem about the ocean.",
+    "What are three tips for staying productive at home?",
+    "Translate the following to French.",
+    "Summarize the text in one sentence.",
+    "What is the capital of France?",
+    "Give me a recipe for pancakes.",
+  ];
+
+  const pillContainer = document.getElementById("demo-pills");
+  demos.forEach(text => {
+    const pill = document.createElement("div");
+    pill.className = "pill";
+    pill.textContent = text;
+    pill.addEventListener("click", () => {
+      document.getElementById("instruction").value = text;
+    });
+    pillContainer.appendChild(pill);
+  });
+
+  // ── Generate ─────────────────────────────────────────────────────────────
+  const btnGenerate  = document.getElementById("btn-generate");
+  const btnClear     = document.getElementById("btn-clear");
+  const responseCard = document.getElementById("response-card");
+  const responseText = document.getElementById("response-text");
+  const responseTitle = document.getElementById("response-title");
+
+  btnGenerate.addEventListener("click", async () => {
+    const instruction = document.getElementById("instruction").value.trim();
+    if (!instruction) {
+      alert("Please enter an instruction.");
+      return;
+    }
+
+    btnGenerate.disabled = true;
+    btnGenerate.innerHTML = '<span class="spinner"></span>&nbsp; Generating…';
+    responseCard.style.display = "block";
+    responseTitle.innerHTML = '<span class="spinner"></span>&nbsp; Generating…';
+    responseText.textContent = "";
+    responseText.className = "";
+
+    try {
+      const res = await fetch("/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          instruction,
+          input:        document.getElementById("input-ctx").value.trim(),
+          max_tokens:   parseInt(document.getElementById("max-tokens").value),
+          temperature:  parseFloat(document.getElementById("temperature").value),
+          top_p:        parseFloat(document.getElementById("top-p").value),
+          rep_penalty:  parseFloat(document.getElementById("rep-penalty").value),
+        }),
+      });
+
+      const data = await res.json();
+      if (data.error) {
+        responseText.textContent = "Error: " + data.error;
+        responseText.className = "error";
+        responseTitle.textContent = "Error";
+      } else {
+        responseText.textContent = data.response || "(empty response)";
+        responseTitle.textContent = "Response";
+      }
+    } catch (err) {
+      responseText.textContent = "Network error: " + err.message;
+      responseText.className = "error";
+      responseTitle.textContent = "Error";
+    } finally {
+      btnGenerate.disabled = false;
+      btnGenerate.innerHTML = "&#9654;&nbsp; Generate";
+    }
+  });
+
+  btnClear.addEventListener("click", () => {
+    document.getElementById("instruction").value = "";
+    document.getElementById("input-ctx").value = "";
+    responseCard.style.display = "none";
+    responseText.textContent = "";
+    responseText.className = "";
+  });
+
+  // Allow Ctrl+Enter to submit
+  document.addEventListener("keydown", e => {
+    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+      btnGenerate.click();
+    }
+  });
+</script>
+</body>
+</html>
